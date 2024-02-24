@@ -42,24 +42,39 @@ class Server:
 
 async def check_mess(message: str) -> str:
     # logging.info(f'query1 = {message}')
-    if message.split(" ")[0] == 'exchange':
-        # logging.info(f'query2 = {message}')
-        if message.split(" ")[1].isdigit():
-            # logging.info(f'query3 = {message}')
-            quant_ = message.split(" ")[1]
-            logging.info(f'quant_ = {quant_}')
-            date_ =  date.today()
-            logging.info(f'date_ = {date_}')
-            for i in range(quant_):
-                logging.info(f'iteration = {i}')
-                current_date = (date_ - timedelta(days=i)).strftime('%d.%m.%Y')
-                logging.info(f'query6 = {current_date}')
+    result_data = ""
+    list_message = message.split(" ")
+    if list_message[0] == 'exchange':
+        date_ =  date.today()
+        if len(list_message) > 1:
+            list_currency = []
+            for i in Currencys:
+                if i in message:
+                    list_currency.append(i)
+                    
+            if list_message[1].isdigit():
+                quant_ = int(list_message[1])
+                if quant_ > 10:
+                    quant_ = 10
+                for i in range(quant_):
+                    current_date = (date_ - timedelta(days=i)).strftime('%d.%m.%Y')
+                    result = await request_to_banc(f'https://api.privatbank.ua/p24api/exchange_rates?json&date={current_date}')
+                    result = await norm_data(result, list_currency)
+                    result_data += result
+            else:
+                current_date = date_.strftime('%d.%m.%Y')
                 result = await request_to_banc(f'https://api.privatbank.ua/p24api/exchange_rates?json&date={current_date}')
-                logging.info(f'query8 = {result}')
-                
+                result = await norm_data(result, list_currency)
+                result_data += result
+        else:
+            current_date = (date_).strftime('%d.%m.%Y')
+            result = await request_to_banc(f'https://api.privatbank.ua/p24api/exchange_rates?json&date={current_date}')
+            result = await norm_data(result)
+            result_data += result                
     else:
-        result = message
-    return result
+        result_data = message
+    logging.info(f'result_data = {result_data}')
+    return result_data
 
 async def request_to_banc(message):
     logging.info(f'query7 = {message}')
@@ -67,6 +82,17 @@ async def request_to_banc(message):
         async with session.get(message) as response:
             result = await response.json()
             return result
+
+async def norm_data(data_, list_currency = []):
+    list_cur = ["USD", "EUR"] + list_currency
+    str_data = data_['date']
+    for i in data_['exchangeRate']:
+        if i['currency'] in list_cur:
+            str_data +=f'\n {i["currency"]}: sale = {i["saleRateNB"]}, purchase = {i["purchaseRateNB"]};'
+    return f'{str_data}\n'
+
+
+Currencys = ["CHF", "GBP", "PLZ", "SEK", "XAU", "CAD"]
     
 async def main():
     server = Server()
